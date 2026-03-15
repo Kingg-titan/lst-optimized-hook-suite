@@ -8,8 +8,9 @@ out/
 /broadcast/*/5/
 /broadcast/**/dry-run/
 
-# Docs
-docs/
+# Context clones (local source material, not committed)
+context/*
+!context/README.md
 
 # Dotenv file
 .env

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LST Pool Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script type="module" crossorigin src="/assets/index-B25ukUjj.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B59VFd-Y.css">
+  </head>
+  <body>
+    <div class="bg-grid"></div>
+    <main>
+      <header>
+        <h1>LST Pool Console</h1>
+        <p>Rebasing-aware execution monitor for Uniswap v4 hooks</p>
+      </header>
+
+      <section class="card controls">
+        <button id="connectBtn">Connect Wallet</button>
+        <span id="walletLabel">Disconnected</span>
+      </section>
+
+      <section class="card">
+        <h2>Contract Inputs</h2>
+        <div class="row">
+          <label>Controller</label>
+          <input id="controllerAddress" placeholder="0x..." />
+        </div>
+        <div class="row">
+          <label>Hook</label>
+          <input id="hookAddress" placeholder="0x..." />
+        </div>
+        <div class="row">
+          <label>Rebasing Token</label>
+          <input id="rebasingToken" placeholder="0x..." />
+        </div>
+        <div class="row">
+          <label>Pool Id (bytes32)</label>
+          <input id="poolId" placeholder="0x..." />
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Rebase Actions</h2>
+        <div class="row">
+          <label>Rebase BPS</label>
+          <input id="rebaseBps" value="100" />
+          <button id="rebaseBtn">Trigger Rebase</button>
+        </div>
+        <div class="row">
+          <label>Swap Amount (wei)</label>
+          <input id="swapAmount" value="100000000000000000" />
+          <button id="evaluateBtn">Evaluate Guardrail</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Runtime State</h2>
+        <pre id="output">Awaiting action...</pre>
+      </section>
+    </main>
+  </body>
+</html>

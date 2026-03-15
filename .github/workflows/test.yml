@@ -1,16 +1,16 @@
-name: Test Suite
+name: CI
 
 on:
   workflow_dispatch:
-  # push:
-  # pull_request:
+  push:
+  pull_request:
 
 env:
   FOUNDRY_PROFILE: ci
 
 jobs:
   test:
-    name: Foundry Project
+    name: Foundry + Frontend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,13 +22,34 @@ jobs:
         with:
           version: stable
 
+      - name: Bootstrap Dependencies
+        run: bash scripts/bootstrap.sh
+
       - name: Build
         run: |
           forge --version
           forge build --sizes
-        id: build
 
       - name: Test
         run: |
           forge test -vvv
-        id: test
+
+      - name: Coverage
+        run: |
+          forge coverage --report summary
+
+      - name: Export ABIs
+        run: |
+          bash scripts/export_abis.sh
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Frontend Deps
+        run: npm install --workspaces
+
+      - name: Build Frontend
+        run: npm run --workspace frontend build

@@ -1,0 +1,15 @@
+{
+  "name": "lst-optimized-hook-suite",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "build": "forge build && npm run --workspace frontend build",
+    "test": "forge test",
+    "coverage": "forge coverage --report summary",
+    "frontend:dev": "npm run --workspace frontend dev",
+    "frontend:build": "npm run --workspace frontend build"
+  }
+}
