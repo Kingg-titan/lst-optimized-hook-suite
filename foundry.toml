@@ -8,6 +8,7 @@ out = "out"
 solc_version = "0.8.30"
 src = "src"
 via_ir = true
+no_match_coverage = "(script|helpers|lib)"
 
 [lint]
 exclude_lints = ["screaming-snake-case-immutable", "screaming-snake-case-const"]
