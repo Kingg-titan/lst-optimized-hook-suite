@@ -12,7 +12,7 @@ test:
 	forge test
 
 coverage:
-	forge coverage --report summary
+	forge coverage --ir-minimum --exclude-tests --no-match-coverage "script|test" --report summary
 
 export-abis:
 	bash scripts/export_abis.sh
@@ -26,7 +26,7 @@ demo-testnet:
 demo-rebase:
 	bash scripts/demo_rebase.sh
 
-demo-all: bootstrap build test demo-local demo-rebase
+demo-all: bootstrap build test demo-local demo-rebase demo-testnet
 
 verify-commits:
 	bash scripts/verify_commits.sh 59

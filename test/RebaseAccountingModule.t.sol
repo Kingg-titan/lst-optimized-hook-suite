@@ -16,6 +16,14 @@ contract IndexHarness {
     {
         return state.detectAndUpdateIndex(nextIndex, maxDeltaBps);
     }
+
+    function normalizeDown(uint256 rawAmount, uint256 index_) external pure returns (uint256) {
+        return RebaseAccountingModule.normalizeDown(rawAmount, index_);
+    }
+
+    function normalizeUp(uint256 rawAmount, uint256 index_) external pure returns (uint256) {
+        return RebaseAccountingModule.normalizeUp(rawAmount, index_);
+    }
 }
 
 contract RebaseAccountingModuleTest is Test {
@@ -39,6 +47,24 @@ contract RebaseAccountingModuleTest is Test {
         assertLe(raw - recovered, 1);
     }
 
+    function testNormalizeAndDenormalizeUpBranches() public pure {
+        uint256 index_ = 1.11e18;
+        assertEq(RebaseAccountingModule.normalizeUp(0, index_), 0);
+        assertEq(RebaseAccountingModule.denormalizeUp(0, index_), 0);
+
+        uint256 normalized = RebaseAccountingModule.normalizeUp(10 ether, index_);
+        uint256 recovered = RebaseAccountingModule.denormalizeUp(normalized, index_);
+        assertGe(recovered, 10 ether);
+    }
+
+    function testInvalidIndexReverts() public {
+        vm.expectRevert();
+        harness.normalizeDown(1 ether, 0);
+
+        vm.expectRevert();
+        harness.normalizeUp(1 ether, 0);
+    }
+
     function testDetectAndUpdateIndex() public {
         (bool changed0, uint256 previous0, uint256 delta0) = state.detectAndUpdateIndex(1e18, 500);
         assertTrue(changed0);
@@ -55,6 +81,28 @@ contract RebaseAccountingModuleTest is Test {
         harness.detect(1e18, 300);
         vm.expectRevert();
         harness.detect(1.1e18, 300);
+    }
+
+    function testDetectAndUpdateIndexRejectsZeroIndex() public {
+        vm.expectRevert(RebaseAccountingModule.InvalidIndex.selector);
+        harness.detect(0, 300);
+    }
+
+    function testDetectAndUpdateIndexNoChangeAndMonotonicRevert() public {
+        harness.detect(1e18, 300);
+        (bool changed,, uint256 delta) = harness.detect(1e18, 300);
+        assertTrue(!changed);
+        assertEq(delta, 0);
+
+        vm.expectRevert();
+        harness.detect(0.99e18, 300);
+    }
+
+    function testDetectAndUpdateIndexUnbounded() public {
+        harness.detect(1e18, 0);
+        (bool changed,, uint256 delta) = harness.detect(1.5e18, 0);
+        assertTrue(changed);
+        assertEq(delta, 5000);
     }
 
     function testFuzzRoundTripSafety(uint128 rawAmount, uint128 index_) public pure {

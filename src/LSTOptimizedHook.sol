@@ -82,51 +82,30 @@ contract LSTOptimizedHook is BaseHook {
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         PoolId poolId = key.toId();
-        YieldDistributionController.PoolConfig memory cfg = controller.getPoolConfig(poolId);
-        if (!cfg.enabled) revert PoolNotConfigured();
+        uint256 amountSpecifiedAbs = _absAmountSpecified(params.amountSpecified);
+        int24 currentTick;
+        bool constrained;
 
-        _validateConfiguredToken(cfg, key);
+        {
+            YieldDistributionController.PoolConfig memory cfg = controller.getPoolConfig(poolId);
+            if (!cfg.enabled) revert PoolNotConfigured();
 
-        uint256 currentIndex = IRebasingIndexToken(cfg.rebasingToken).index();
-        (bool indexChanged, uint256 previousIndex,) =
-            indexState[poolId].detectAndUpdateIndex(currentIndex, cfg.maxIndexDeltaBps);
+            _validateConfiguredToken(cfg, key);
 
-        PricingGuardrails.GuardrailConfig memory guardrailCfg = PricingGuardrails.GuardrailConfig({
-            maxAmountIn: cfg.maxAmountIn,
-            cooldownMaxAmountIn: cfg.cooldownMaxAmountIn,
-            maxImpactBps: cfg.maxImpactBps,
-            cooldownMaxImpactBps: cfg.cooldownMaxImpactBps,
-            cooldownSeconds: cfg.cooldownSeconds,
-            hysteresisSeconds: cfg.hysteresisSeconds
-        });
+            PricingGuardrails.GuardrailConfig memory guardrailCfg = _guardrailConfig(cfg);
+            PricingGuardrails.GuardrailState storage runtime = guardrailState[poolId];
+            _applyRebaseTransition(poolId, cfg, guardrailCfg, runtime);
 
-        PricingGuardrails.GuardrailState storage runtime = guardrailState[poolId];
+            (, currentTick,,) = poolManager.getSlot0(poolId);
+            constrained =
+                PricingGuardrails.enforce(guardrailCfg, runtime, uint40(block.timestamp), amountSpecifiedAbs, currentTick);
 
-        if (indexChanged && previousIndex > 0) {
-            uint256 rawReserve = IERC20(cfg.rebasingToken).balanceOf(address(poolManager));
-            uint256 normalizedReserve = RebaseAccountingModule.normalizeDown(rawReserve, currentIndex);
-
-            (uint256 yieldDeltaRaw, uint256 distributedRaw) =
-                controller.recordYieldDelta(poolId, previousIndex, currentIndex, normalizedReserve);
-
-            runtime.beginCooldown(guardrailCfg, uint40(block.timestamp));
-            emit RebaseDetected(
-                PoolId.unwrap(poolId), previousIndex, currentIndex, yieldDeltaRaw, distributedRaw, runtime.cooldownEnd
-            );
+            if (constrained) {
+                constrainedSwapCount[poolId] += 1;
+            }
         }
 
-        uint256 amountSpecifiedAbs =
-            params.amountSpecified < 0 ? uint256(-params.amountSpecified) : uint256(params.amountSpecified);
-
-        (, int24 currentTick,,) = poolManager.getSlot0(poolId);
-        bool constrained =
-            PricingGuardrails.enforce(guardrailCfg, runtime, uint40(block.timestamp), amountSpecifiedAbs, currentTick);
-
-        if (constrained) {
-            constrainedSwapCount[poolId] += 1;
-        }
-
-        emit GuardrailCheck(PoolId.unwrap(poolId), sender, amountSpecifiedAbs, constrained, currentTick);
+        _emitGuardrailCheck(poolId, sender, amountSpecifiedAbs, constrained, currentTick);
 
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
@@ -162,5 +141,60 @@ contract LSTOptimizedHook is BaseHook {
                 revert RebasingTokenMismatch(configuredToken, token0, token1);
             }
         }
+    }
+
+    function _guardrailConfig(YieldDistributionController.PoolConfig memory cfg)
+        internal
+        pure
+        returns (PricingGuardrails.GuardrailConfig memory guardrailCfg)
+    {
+        guardrailCfg = PricingGuardrails.GuardrailConfig({
+            maxAmountIn: cfg.maxAmountIn,
+            cooldownMaxAmountIn: cfg.cooldownMaxAmountIn,
+            maxImpactBps: cfg.maxImpactBps,
+            cooldownMaxImpactBps: cfg.cooldownMaxImpactBps,
+            cooldownSeconds: cfg.cooldownSeconds,
+            hysteresisSeconds: cfg.hysteresisSeconds
+        });
+    }
+
+    function _applyRebaseTransition(
+        PoolId poolId,
+        YieldDistributionController.PoolConfig memory cfg,
+        PricingGuardrails.GuardrailConfig memory guardrailCfg,
+        PricingGuardrails.GuardrailState storage runtime
+    ) internal {
+        uint256 currentIndex = IRebasingIndexToken(cfg.rebasingToken).index();
+        (bool indexChanged, uint256 previousIndex,) =
+            indexState[poolId].detectAndUpdateIndex(currentIndex, cfg.maxIndexDeltaBps);
+
+        if (!(indexChanged && previousIndex > 0)) {
+            return;
+        }
+
+        uint256 rawReserve = IERC20(cfg.rebasingToken).balanceOf(address(poolManager));
+        uint256 normalizedReserve = RebaseAccountingModule.normalizeDown(rawReserve, currentIndex);
+
+        (uint256 yieldDeltaRaw, uint256 distributedRaw) =
+            controller.recordYieldDelta(poolId, previousIndex, currentIndex, normalizedReserve);
+
+        runtime.beginCooldown(guardrailCfg, uint40(block.timestamp));
+        emit RebaseDetected(
+            PoolId.unwrap(poolId), previousIndex, currentIndex, yieldDeltaRaw, distributedRaw, runtime.cooldownEnd
+        );
+    }
+
+    function _absAmountSpecified(int256 amountSpecified) internal pure returns (uint256) {
+        return amountSpecified < 0 ? uint256(-amountSpecified) : uint256(amountSpecified);
+    }
+
+    function _emitGuardrailCheck(
+        PoolId poolId,
+        address sender,
+        uint256 amountSpecifiedAbs,
+        bool constrained,
+        int24 currentTick
+    ) internal {
+        emit GuardrailCheck(PoolId.unwrap(poolId), sender, amountSpecifiedAbs, constrained, currentTick);
     }
 }

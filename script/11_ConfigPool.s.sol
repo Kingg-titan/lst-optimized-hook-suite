@@ -15,13 +15,28 @@ contract ConfigPool is Script {
     using PoolIdLibrary for PoolKey;
 
     function run() external {
-        uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        uint256 privateKey = vm.envOr("PRIVATE_KEY", uint256(0));
+        if (privateKey == 0) {
+            privateKey = vm.envUint("SEPOLIA_PRIVATE_KEY");
+        }
 
-        address poolManager = vm.envAddress("POOL_MANAGER");
+        address poolManager = vm.envOr("POOL_MANAGER", address(0));
+        if (poolManager == address(0)) {
+            poolManager = vm.envAddress("POOL_MANAGER_ADDRESS");
+        }
+
         address hook = vm.envAddress("HOOK_ADDRESS");
         address controllerAddress = vm.envAddress("CONTROLLER_ADDRESS");
-        address tokenA = vm.envAddress("TOKEN_A");
-        address tokenB = vm.envAddress("TOKEN_B");
+
+        address tokenA = vm.envOr("TOKEN_A", address(0));
+        if (tokenA == address(0)) {
+            tokenA = vm.envAddress("MOCK_REBASING_LST_ADDRESS");
+        }
+
+        address tokenB = vm.envOr("TOKEN_B", address(0));
+        if (tokenB == address(0)) {
+            tokenB = vm.envAddress("MOCK_NON_REBASING_LST_ADDRESS");
+        }
 
         uint24 fee = uint24(vm.envUint("POOL_FEE"));
         int24 tickSpacing = int24(int256(vm.envInt("TICK_SPACING")));
@@ -54,11 +69,14 @@ contract ConfigPool is Script {
 
         YieldDistributionController(controllerAddress).setPoolConfig(poolId, cfg);
 
-        // Optional initialize call if not initialized yet.
-        try IPoolManager(poolManager).initialize(key, 79228162514264337593543950336) {
-            console2.log("pool initialized");
-        } catch {
-            console2.log("pool initialize skipped (already initialized or unsupported call context)");
+        bool tryPoolInitialize = vm.envOr("TRY_POOL_INITIALIZE", false);
+        if (tryPoolInitialize) {
+            // Optional initialize call if not initialized yet.
+            try IPoolManager(poolManager).initialize(key, 79228162514264337593543950336) {
+                console2.log("pool initialized");
+            } catch {
+                console2.log("pool initialize skipped (already initialized or unsupported call context)");
+            }
         }
 
         vm.stopBroadcast();

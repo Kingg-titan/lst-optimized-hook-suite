@@ -1,0 +1,99 @@
+Compiling 72 files with Solc 0.8.30
+Solc 0.8.30 finished in 8.14s
+Compiler run successful!
+Analysing contracts...
+Running tests...
+
+Ran 4 tests for test/MockLSTs.t.sol:MockLSTsTest
+[PASS] testMockNonRebasingLSTFlows() (gas: 960364)
+[PASS] testMockNonRebasingLSTOwnerChecks() (gas: 912189)
+[PASS] testMockRebasingLSTFlows() (gas: 1299545)
+[PASS] testMockRebasingLSTReverts() (gas: 1238207)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 11.51ms (5.16ms CPU time)
+
+Ran 9 tests for test/YieldDistributionController.t.sol:YieldDistributionControllerTest
+[PASS] testRecordYieldNeutral() (gas: 228798)
+[PASS] testRecordYieldNoIncreaseProducesZeroDelta() (gas: 202681)
+[PASS] testRecordYieldRevertsWhenPoolDisabled() (gas: 53753)
+[PASS] testRecordYieldSplit() (gas: 255663)
+[PASS] testRecordYieldUnauthorized() (gas: 127418)
+[PASS] testSetHook() (gas: 33881)
+[PASS] testSetHookUnauthorized() (gas: 11940)
+[PASS] testSetPoolConfigAndGet() (gas: 129667)
+[PASS] testSetPoolConfigInvalids() (gas: 46226)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 15.50ms (8.78ms CPU time)
+
+Ran 2 tests for test/DemoFlow.t.sol:DemoFlowTest
+[PASS] testDemoLifecycleSummary() (gas: 495040)
+[PASS] testRebaseTriggersCooldownAndConstrainedSwapCounter() (gas: 278791)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 38.72ms (37.62ms CPU time)
+
+Ran 12 tests for test/LSTOptimizedHook.t.sol:LSTOptimizedHookTest
+[PASS] testAfterSwapCheckpointsTick() (gas: 124207)
+[PASS] testConfiguredTokenValidationAlternateBranch() (gas: 2424077)
+[PASS] testConfiguredTokenValidationAlternateBranchMismatchReverts() (gas: 2362898)
+[PASS] testCooldownBoundaryOpenAtEnd() (gas: 297746)
+[PASS] testExtremeIndexDeltaReverts() (gas: 89137)
+[PASS] testGetHookPermissions() (gas: 13065)
+[PASS] testMismatchedTokenConfigReverts() (gas: 102934)
+[PASS] testPermissionBitMismatchExpectations() (gas: 52823)
+[PASS] testPoolNotConfiguredReverts() (gas: 1582436)
+[PASS] testRebaseTriggersCooldownAndRecordsYield() (gas: 263478)
+[PASS] testSwapAllowedWhenIndexConstant() (gas: 97218)
+[PASS] testSwapRevertsWhenAmountExceedsCooldownLimit() (gas: 222080)
+Suite result: ok. 12 passed; 0 failed; 0 skipped; finished in 50.95ms (46.88ms CPU time)
+
+Ran 10 tests for test/RebaseAccountingModule.t.sol:RebaseAccountingModuleTest
+[PASS] testDetectAndUpdateIndex() (gas: 49926)
+[PASS] testDetectAndUpdateIndexNoChangeAndMonotonicRevert() (gas: 64472)
+[PASS] testDetectAndUpdateIndexRejectsLargeDelta() (gas: 61157)
+[PASS] testDetectAndUpdateIndexRejectsZeroIndex() (gas: 11478)
+[PASS] testDetectAndUpdateIndexUnbounded() (gas: 58936)
+[PASS] testFuzzMonotonicIndexAssumption(uint128,uint128) (runs: 256, μ: 50444, ~: 50489)
+[PASS] testFuzzRoundTripSafety(uint128,uint128) (runs: 256, μ: 6036, ~: 6036)
+[PASS] testInvalidIndexReverts() (gas: 13736)
+[PASS] testNormalizeAndDenormalizeRoundTripDown() (gas: 2151)
+[PASS] testNormalizeAndDenormalizeUpBranches() (gas: 4526)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 51.14ms (77.42ms CPU time)
+
+Ran 10 tests for test/MockPoolManagerHarness.t.sol:MockPoolManagerHarnessTest
+[PASS] testCallAfterSwapFailure() (gas: 63092)
+[PASS] testCallAfterSwapSuccess() (gas: 42786)
+[PASS] testCallBeforeSwapFailure() (gas: 62470)
+[PASS] testCallBeforeSwapSuccess() (gas: 43586)
+[PASS] testExtsloadArrayWithValues() (gas: 63536)
+[PASS] testExtsloadArrayWithZeroLength() (gas: 9317)
+[PASS] testExtsloadRangeWithValues() (gas: 89155)
+[PASS] testExtsloadRangeWithZeroLength() (gas: 8691)
+[PASS] testSetRawSlotAndExtsloadSingle() (gas: 31958)
+[PASS] testSetSlot0PacksExpectedValue() (gas: 38408)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 51.04ms (8.11ms CPU time)
+
+Ran 4 tests for test/PricingGuardrails.t.sol:PricingGuardrailsTest
+[PASS] testCooldownBoundaryOpenAtEnd() (gas: 51576)
+[PASS] testCooldownUsesTighterAmountLimit() (gas: 53140)
+[PASS] testFuzzValidInputsDoNotRevert(uint96,int24) (runs: 256, μ: 46456, ~: 46493)
+[PASS] testMaxImpactBoundary() (gas: 57496)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 71.86ms (63.80ms CPU time)
+
+Ran 7 test suites in 274.86ms (290.72ms CPU time): 51 tests passed, 0 failed, 0 skipped (51 total tests)
+
+╭---------------------------------------------+-------------------+-------------------+-----------------+-----------------╮
+| File                                        | % Lines           | % Statements      | % Branches      | % Funcs         |
++=========================================================================================================================+
+| src/LSTOptimizedHook.sol                    | 100.00% (55/55)   | 100.00% (57/57)   | 100.00% (7/7)   | 100.00% (10/10) |
+|---------------------------------------------+-------------------+-------------------+-----------------+-----------------|
+| src/mocks/MockNonRebasingLST.sol            | 100.00% (9/9)     | 100.00% (6/6)     | 100.00% (1/1)   | 100.00% (4/4)   |
+|---------------------------------------------+-------------------+-------------------+-----------------+-----------------|
+| src/mocks/MockPoolManagerHarness.sol        | 100.00% (36/36)   | 100.00% (36/36)   | 100.00% (4/4)   | 100.00% (7/7)   |
+|---------------------------------------------+-------------------+-------------------+-----------------+-----------------|
+| src/mocks/MockRebasingLST.sol               | 100.00% (32/32)   | 100.00% (32/32)   | 100.00% (4/4)   | 100.00% (11/11) |
+|---------------------------------------------+-------------------+-------------------+-----------------+-----------------|
+| src/modules/PricingGuardrails.sol           | 100.00% (24/24)   | 100.00% (27/27)   | 100.00% (5/5)   | 100.00% (5/5)   |
+|---------------------------------------------+-------------------+-------------------+-----------------+-----------------|
+| src/modules/RebaseAccountingModule.sol      | 100.00% (27/27)   | 100.00% (35/35)   | 100.00% (9/9)   | 100.00% (5/5)   |
+|---------------------------------------------+-------------------+-------------------+-----------------+-----------------|
+| src/modules/YieldDistributionController.sol | 100.00% (35/35)   | 100.00% (46/46)   | 100.00% (9/9)   | 100.00% (8/8)   |
+|---------------------------------------------+-------------------+-------------------+-----------------+-----------------|
+| Total                                       | 100.00% (218/218) | 100.00% (239/239) | 100.00% (39/39) | 100.00% (50/50) |
+╰---------------------------------------------+-------------------+-------------------+-----------------+-----------------╯

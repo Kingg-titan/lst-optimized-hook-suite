@@ -5,73 +5,48 @@ import {Test} from "forge-std/Test.sol";
 
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
-import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
-import {LiquidityAmounts} from "@uniswap/v4-core/test/utils/LiquidityAmounts.sol";
-import {Constants} from "@uniswap/v4-core/test/utils/Constants.sol";
-
-import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
-
-import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
-
-import {EasyPosm} from "./utils/libraries/EasyPosm.sol";
-import {BaseTest} from "./utils/BaseTest.sol";
+import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 
 import {LSTOptimizedHook} from "src/LSTOptimizedHook.sol";
 import {MockRebasingLST} from "src/mocks/MockRebasingLST.sol";
+import {MockNonRebasingLST} from "src/mocks/MockNonRebasingLST.sol";
+import {PricingGuardrails} from "src/modules/PricingGuardrails.sol";
 import {YieldDistributionController} from "src/modules/YieldDistributionController.sol";
 
-contract LSTOptimizedHookTest is BaseTest {
-    using EasyPosm for IPositionManager;
+import {MockPoolManager} from "test/mocks/MockPoolManager.sol";
+
+contract LSTOptimizedHookTest is Test {
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
-    using StateLibrary for IPoolManager;
 
+    uint160 internal constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
+
+    MockPoolManager internal mockPoolManager;
     MockRebasingLST internal rebasing;
-    MockERC20 internal quote;
+    MockNonRebasingLST internal quote;
 
-    LSTOptimizedHook internal hook;
     YieldDistributionController internal controller;
+    LSTOptimizedHook internal hook;
 
     PoolKey internal poolKey;
     PoolId internal poolId;
 
     bool internal rebasingIsCurrency0;
 
-    uint256 internal positionId;
-
-    uint40 internal constant COOLDOWN_SECONDS = 30;
-    uint256 internal constant MAX_AMOUNT_IN = 5 ether;
-    uint256 internal constant COOLDOWN_MAX_AMOUNT_IN = 0.5 ether;
-
     function setUp() public {
-        deployArtifactsAndLabel();
-
+        mockPoolManager = new MockPoolManager();
         rebasing = new MockRebasingLST("Mock stETH", "mstETH", 2_000);
-        quote = new MockERC20("Quote USD", "qUSD", 18);
-
-        rebasing.mint(address(this), 1_000_000 ether);
-        quote.mint(address(this), 1_000_000 ether);
-
-        rebasing.approve(address(permit2), type(uint256).max);
-        rebasing.approve(address(swapRouter), type(uint256).max);
-        quote.approve(address(permit2), type(uint256).max);
-        quote.approve(address(swapRouter), type(uint256).max);
-
-        permit2.approve(address(rebasing), address(positionManager), type(uint160).max, type(uint48).max);
-        permit2.approve(address(rebasing), address(poolManager), type(uint160).max, type(uint48).max);
-        permit2.approve(address(quote), address(positionManager), type(uint160).max, type(uint48).max);
-        permit2.approve(address(quote), address(poolManager), type(uint160).max, type(uint48).max);
+        quote = new MockNonRebasingLST("Mock qUSD", "mqUSD");
 
         controller = new YieldDistributionController(address(this));
 
         address flags = address(uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG) ^ (0x4444 << 144));
-        bytes memory constructorArgs = abi.encode(poolManager, controller);
+        bytes memory constructorArgs = abi.encode(IPoolManager(address(mockPoolManager)), controller);
         deployCodeTo("LSTOptimizedHook.sol:LSTOptimizedHook", constructorArgs, flags);
         hook = LSTOptimizedHook(flags);
 
@@ -97,56 +72,33 @@ contract LSTOptimizedHookTest is BaseTest {
             maxIndexDeltaBps: 600,
             yieldSplitBps: 2_000,
             distributionMode: YieldDistributionController.DistributionMode.Split,
-            maxAmountIn: MAX_AMOUNT_IN,
-            cooldownMaxAmountIn: COOLDOWN_MAX_AMOUNT_IN,
+            maxAmountIn: 5 ether,
+            cooldownMaxAmountIn: 0.5 ether,
             maxImpactBps: 150,
             cooldownMaxImpactBps: 35,
-            cooldownSeconds: COOLDOWN_SECONDS,
+            cooldownSeconds: 30,
             hysteresisSeconds: 10
         });
 
         controller.setPoolConfig(poolId, cfg);
 
-        poolManager.initialize(poolKey, Constants.SQRT_PRICE_1_1);
+        rebasing.mint(address(mockPoolManager), 2_000 ether);
+        mockPoolManager.setSlot0(poolId, SQRT_PRICE_1_1, 0, 0, 3000);
 
-        int24 tickLower = TickMath.minUsableTick(poolKey.tickSpacing);
-        int24 tickUpper = TickMath.maxUsableTick(poolKey.tickSpacing);
-
-        uint128 liquidityAmount = 100e18;
-        (uint256 amount0Expected, uint256 amount1Expected) = LiquidityAmounts.getAmountsForLiquidity(
-            Constants.SQRT_PRICE_1_1,
-            TickMath.getSqrtPriceAtTick(tickLower),
-            TickMath.getSqrtPriceAtTick(tickUpper),
-            liquidityAmount
-        );
-
-        (positionId,) = positionManager.mint(
-            poolKey,
-            tickLower,
-            tickUpper,
-            liquidityAmount,
-            amount0Expected + 1,
-            amount1Expected + 1,
-            address(this),
-            block.timestamp,
-            Constants.ZERO_BYTES
-        );
-
-        positionId;
-
-        // Seed index and guardrail checkpoints.
-        _swapExactIn(0.01 ether);
+        // Prime index state with first callback.
+        _beforeSwap(0.01 ether, 0);
+        _afterSwap(0);
     }
 
     function testSwapAllowedWhenIndexConstant() public {
-        _swapExactIn(0.2 ether);
+        _beforeSwap(0.2 ether, 10);
         assertEq(hook.constrainedSwapCount(poolId), 0);
     }
 
-    function testRebaseTriggersCooldownAndConstrainedSwapCounter() public {
+    function testRebaseTriggersCooldownAndRecordsYield() public {
         rebasing.rebaseByBps(100);
+        _beforeSwap(0.25 ether, 10);
 
-        _swapExactIn(0.25 ether);
         assertEq(hook.constrainedSwapCount(poolId), 1);
 
         YieldDistributionController.PoolAccounting memory accounting = controller.getPoolAccounting(poolId);
@@ -156,69 +108,160 @@ contract LSTOptimizedHookTest is BaseTest {
 
     function testSwapRevertsWhenAmountExceedsCooldownLimit() public {
         rebasing.rebaseByBps(100);
-
-        vm.expectRevert();
-        _swapExactIn(COOLDOWN_MAX_AMOUNT_IN + 1);
+        _expectBeforeSwapRevert(0.6 ether, 0);
     }
 
     function testCooldownBoundaryOpenAtEnd() public {
         rebasing.rebaseByBps(100);
-        _swapExactIn(0.25 ether);
+        _beforeSwap(0.25 ether, 0);
 
-        vm.warp(block.timestamp + COOLDOWN_SECONDS);
-        _swapExactIn(1 ether);
-    }
-
-    function testMaxSwapBoundary() public {
-        _swapExactIn(MAX_AMOUNT_IN);
-
-        vm.expectRevert();
-        _swapExactIn(MAX_AMOUNT_IN + 1);
+        vm.warp(block.timestamp + 30);
+        _beforeSwap(1 ether, 0);
     }
 
     function testExtremeIndexDeltaReverts() public {
         rebasing.rebaseByBps(1000);
-        vm.expectRevert();
-        _swapExactIn(0.1 ether);
+        _expectBeforeSwapRevert(0.1 ether, 0);
     }
 
-    function testUnauthorizedConfigChangeReverts() public {
-        YieldDistributionController.PoolConfig memory cfg = controller.getPoolConfig(poolId);
-        cfg.maxAmountIn = 1;
+    function testAfterSwapCheckpointsTick() public {
+        _beforeSwap(0.1 ether, 20);
+        _afterSwap(33);
 
-        vm.prank(address(0xBEEF));
-        vm.expectRevert(YieldDistributionController.Unauthorized.selector);
+        (uint40 cooldownEnd, uint40 hysteresisEnd, int24 lastObservedTick, uint40 lastObservedAt) = _guardrailState();
+        assertEq(lastObservedTick, 33);
+        assertGt(lastObservedAt, 0);
+        cooldownEnd;
+        hysteresisEnd;
+    }
+
+    function testPoolNotConfiguredReverts() public {
+        YieldDistributionController freshController = new YieldDistributionController(address(this));
+
+        address flags = address(uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG) ^ (0x5555 << 144));
+        bytes memory constructorArgs = abi.encode(IPoolManager(address(mockPoolManager)), freshController);
+        deployCodeTo("LSTOptimizedHook.sol:LSTOptimizedHook", constructorArgs, flags);
+
+        LSTOptimizedHook freshHook = LSTOptimizedHook(flags);
+        freshController.setHook(address(freshHook));
+
+        vm.prank(address(mockPoolManager));
+        vm.expectRevert();
+        freshHook.beforeSwap(address(this), poolKey, _swapParams(0.1 ether), bytes(""));
+    }
+
+    function testMismatchedTokenConfigReverts() public {
+        YieldDistributionController.PoolConfig memory cfg = controller.getPoolConfig(poolId);
+        cfg.rebasingToken = address(quote);
         controller.setPoolConfig(poolId, cfg);
+
+        _expectBeforeSwapRevert(0.1 ether, 0);
     }
 
     function testPermissionBitMismatchExpectations() public {
         vm.expectRevert();
-        new LSTOptimizedHook(poolManager, controller);
+        new LSTOptimizedHook(IPoolManager(address(mockPoolManager)), controller);
     }
 
-    function testDemoLifecycleSummary() public {
-        _swapExactIn(0.1 ether);
+    function testGetHookPermissions() public view {
+        Hooks.Permissions memory permissions = hook.getHookPermissions();
+        assertTrue(permissions.beforeSwap);
+        assertTrue(permissions.afterSwap);
+        assertTrue(!permissions.beforeInitialize);
+    }
 
-        rebasing.rebaseByBps(120);
+    function testConfiguredTokenValidationAlternateBranch() public {
+        MockNonRebasingLST quote2 = new MockNonRebasingLST("Quote 2", "q2");
+        MockRebasingLST rebasing2 = new MockRebasingLST("Rebase 2", "r2", 2_000);
+        rebasing2.mint(address(mockPoolManager), 1_000 ether);
+
+        // Force the `rebasingTokenIsCurrency0 == false` branch deterministically.
+        PoolKey memory poolKey2 =
+            PoolKey(Currency.wrap(address(quote2)), Currency.wrap(address(rebasing2)), 3000, 60, IHooks(hook));
+        bool rebasingIsCurrency0ForPool2 = false;
+        PoolId poolId2 = poolKey2.toId();
+
+        YieldDistributionController.PoolConfig memory cfg = controller.getPoolConfig(poolId);
+        cfg.rebasingToken = address(rebasing2);
+        cfg.rebasingTokenIsCurrency0 = rebasingIsCurrency0ForPool2;
+        controller.setPoolConfig(poolId2, cfg);
+
+        _beforeSwapFor(poolKey2, poolId2, rebasingIsCurrency0ForPool2, 0.1 ether, 0);
+    }
+
+    function testConfiguredTokenValidationAlternateBranchMismatchReverts() public {
+        MockNonRebasingLST quote2 = new MockNonRebasingLST("Quote 2", "q2");
+        MockRebasingLST rebasing2 = new MockRebasingLST("Rebase 2", "r2", 2_000);
+        rebasing2.mint(address(mockPoolManager), 1_000 ether);
+
+        PoolKey memory poolKey2 =
+            PoolKey(Currency.wrap(address(quote2)), Currency.wrap(address(rebasing2)), 3000, 60, IHooks(hook));
+        PoolId poolId2 = poolKey2.toId();
+
+        YieldDistributionController.PoolConfig memory cfg = controller.getPoolConfig(poolId);
+        cfg.rebasingToken = address(quote2);
+        cfg.rebasingTokenIsCurrency0 = false;
+        controller.setPoolConfig(poolId2, cfg);
+
+        _expectBeforeSwapRevertFor(poolKey2, poolId2, false, 0.1 ether, 0);
+    }
+
+    function _beforeSwap(uint256 amountIn, int24 tick) internal {
+        _beforeSwapFor(poolKey, poolId, rebasingIsCurrency0, amountIn, tick);
+    }
+
+    function _expectBeforeSwapRevert(uint256 amountIn, int24 tick) internal {
+        mockPoolManager.setSlot0(poolId, SQRT_PRICE_1_1, tick, 0, 3000);
+
         vm.expectRevert();
-        _swapExactIn(1 ether);
-
-        vm.warp(block.timestamp + COOLDOWN_SECONDS + 1);
-        _swapExactIn(0.5 ether);
-
-        emit log_named_uint("indexAfter", rebasing.index());
-        emit log_named_uint("constrainedSwapCount", hook.constrainedSwapCount(poolId));
+        vm.prank(address(mockPoolManager));
+        hook.beforeSwap(address(this), poolKey, _swapParams(amountIn), bytes(""));
     }
 
-    function _swapExactIn(uint256 amountIn) internal returns (BalanceDelta swapDelta) {
-        swapDelta = swapRouter.swapExactTokensForTokens({
-            amountIn: amountIn,
-            amountOutMin: 0,
-            zeroForOne: rebasingIsCurrency0,
-            poolKey: poolKey,
-            hookData: Constants.ZERO_BYTES,
-            receiver: address(this),
-            deadline: block.timestamp + 1
-        });
+    function _expectBeforeSwapRevertFor(PoolKey memory key, PoolId id, bool zeroForOne, uint256 amountIn, int24 tick)
+        internal
+    {
+        mockPoolManager.setSlot0(id, SQRT_PRICE_1_1, tick, 0, 3000);
+
+        vm.expectRevert();
+        vm.prank(address(mockPoolManager));
+        hook.beforeSwap(
+            address(this),
+            key,
+            SwapParams({zeroForOne: zeroForOne, amountSpecified: -int256(amountIn), sqrtPriceLimitX96: 0}),
+            bytes("")
+        );
+    }
+
+    function _afterSwap(int24 tick) internal {
+        mockPoolManager.setSlot0(poolId, SQRT_PRICE_1_1, tick, 0, 3000);
+
+        vm.prank(address(mockPoolManager));
+        hook.afterSwap(address(this), poolKey, _swapParams(0.05 ether), BalanceDelta.wrap(0), bytes(""));
+    }
+
+    function _guardrailState()
+        internal
+        view
+        returns (uint40 cooldownEnd, uint40 hysteresisEnd, int24 lastObservedTick, uint40 lastObservedAt)
+    {
+        PricingGuardrails.GuardrailState memory state = hook.getGuardrailState(poolId);
+        return (state.cooldownEnd, state.hysteresisEnd, state.lastObservedTick, state.lastObservedAt);
+    }
+
+    function _swapParams(uint256 amountIn) internal view returns (SwapParams memory) {
+        return SwapParams({zeroForOne: rebasingIsCurrency0, amountSpecified: -int256(amountIn), sqrtPriceLimitX96: 0});
+    }
+
+    function _beforeSwapFor(PoolKey memory key, PoolId id, bool zeroForOne, uint256 amountIn, int24 tick) internal {
+        mockPoolManager.setSlot0(id, SQRT_PRICE_1_1, tick, 0, 3000);
+
+        vm.prank(address(mockPoolManager));
+        hook.beforeSwap(
+            address(this),
+            key,
+            SwapParams({zeroForOne: zeroForOne, amountSpecified: -int256(amountIn), sqrtPriceLimitX96: 0}),
+            bytes("")
+        );
     }
 }

@@ -8,7 +8,7 @@
   "scripts": {
     "build": "forge build && npm run --workspace frontend build",
     "test": "forge test",
-    "coverage": "forge coverage --report summary",
+    "coverage": "forge coverage --ir-minimum --exclude-tests --no-match-coverage \"script|test\" --report summary",
     "frontend:dev": "npm run --workspace frontend dev",
     "frontend:build": "npm run --workspace frontend build"
   }
