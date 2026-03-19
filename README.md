@@ -75,8 +75,8 @@ flowchart TD
   end
 
   subgraph UnichainSepolia
-    N1[MockRebasingLST index()]
-    N2[MockNonRebasingLST]
+    N1["MockRebasingLST index"]
+    N2["MockNonRebasingLST"]
   end
 
   U1 --> H4
