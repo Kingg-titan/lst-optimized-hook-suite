@@ -17,3 +17,10 @@ context/*
 
 # Node modules
 node_modules/
+
+# Untracked project-local generated or external directories
+broadcast/
+coverage/
+context/
+lib/
+frontend/
